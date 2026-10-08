@@ -374,6 +374,7 @@ obj::object_ref<object> interpreter::visit(ast::namespace_aggregate_expr const &
 
 obj::object_ref<object> interpreter::visit(ast::extern_decl_expr const &expr)
 {
+    /** TODO: Cache loaded libraries for faster use */
     /** load the library */
     auto from = expr.lib->visit(*this)->to_str();
     ffi::so so{get_lib_full(from)};

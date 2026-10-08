@@ -19,8 +19,10 @@
 
 #pragma once
 
-#include <string>
 #include <dlfcn.h>
+#include <string>
+
+#include "error.h"
 
 namespace kpp::ffi
 {
@@ -80,4 +82,4 @@ private:
     void *m_handle;
 };
 
-}
+} // namespace kpp::ffi

@@ -1,7 +1,9 @@
 require "optparse"
 require "fileutils"
+require "rbconfig"
 
 options = {}
+
 OptionParser.new do |opts|
   opts.on("-t", "--tests", "Run tests") do
     options[:tests] = true
@@ -19,7 +21,7 @@ OptionParser.new do |opts|
     options[:debug] = true
   end
 
-  opts.on("-a", "--asan", "Address Sanizer") do
+  opts.on("-a", "--asan", "Address/Undefined Sanitizer") do
     options[:asan] = true
   end
 
@@ -33,37 +35,57 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-def run(s)
-  system s or abort "#{s} failed"
+def run(*cmd)
+  puts "$ #{cmd.join(" ")}"
+  system(*cmd) or abort "#{cmd.join(" ")} failed"
 end
 
-case RbConfig::CONFIG["host_os"]
-  when /android/i
-    options[:prefix]= ENV["PREFIX"] || ENV["HOME"] || "./"
+if RbConfig::CONFIG["host_os"] =~ /android/i
+  options[:prefix] ||= ENV["PREFIX"] || ENV["HOME"] || "./"
 end
 
-build_dir = "./.build"
-if not File.exist?(build_dir) or options[:clean]
-  FileUtils.rm_r(build_dir) if File.exist?(build_dir)
+build_dir = ".build"
 
-  prefix = options[:prefix]
-  setup_cmd = "meson setup #{build_dir}"
-  setup_cmd << " -Dprefix=#{prefix}"
-  setup_cmd << " -Dbuildtype=debug" if options[:debug]
-  setup_cmd << " -Db_sanitize=address,undefined" if options[:asan]
-  run setup_cmd
+if !File.exist?(build_dir) || options[:clean]
+  FileUtils.rm_rf(build_dir)
+
+  cmake_args = [
+    "-S", ".",
+    "-B", build_dir,
+    "-G", "Ninja"
+  ]
+
+  if options[:prefix]
+    cmake_args << "-DCMAKE_INSTALL_PREFIX=#{options[:prefix]}"
+  end
+
+  if options[:debug]
+    cmake_args << "-DCMAKE_BUILD_TYPE=Debug"
+  else
+    cmake_args << "-DCMAKE_BUILD_TYPE=Release"
+  end
+
+  if options[:asan]
+    cmake_args << "-DCMAKE_C_FLAGS=-fsanitize=address,undefined"
+    cmake_args << "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined"
+  end
+
+  run "cmake", *cmake_args
 end
 
-FileUtils.cp_r("#{build_dir}/compile_commands.json", ".")
+compile_commands = "#{build_dir}/compile_commands.json"
+FileUtils.cp(compile_commands, ".") if File.exist?(compile_commands)
 
-run "meson compile -C #{build_dir}"
+run "cmake", "--build", build_dir
 
 if options[:install]
-  run "meson install -C #{build_dir}"
+  run "cmake", "--install", build_dir
 end
 
-
 if options[:tests]
-  run "kpp compile examples/hello_world" if options[:install]
-  run ".build/kpp compile examples/hello_world" unless options[:install]
+  if options[:install]
+    run "kpp", "compile", "examples/hello_world"
+  else
+    run "#{build_dir}/kpp", "compile", "examples/hello_world"
+  end
 end
