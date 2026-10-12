@@ -165,7 +165,8 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
 {
     to->define_static_method(
         make_method("new",
-                    [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
                     {
                         return make_object<null_object>();
                     }));
@@ -174,7 +175,8 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
     to->define_method(
         make_method(to,
                     "get_type",
-                    [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
                     {
                         return self->get_type();
                     }));
@@ -183,19 +185,38 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
     to->define_static_method(
         make_method(to,
                     "get_type",
-                    [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
                     {
                         return self->get_type();
                     }));
-
 
     /** to_str instance method */
     to->define_method(
         make_method(to,
                     "to_str",
-                    [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
                     {
                         return make_object<string_object>(self->to_str());
+                    }));
+
+    to->define_method(
+        make_method(to,
+                    "get_name",
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    {
+                        return make_object<string_object>(self->get_name());
+                    }));
+
+    to->define_method(
+        make_method(to,
+                    "repr",
+                    [](object_ref<object> self,
+                       std::vector<object_ref<object>> const &args) -> object_ref<object>
+                    {
+                        return make_object<string_object>(self->repr());
                     }));
 }
 

@@ -16,3 +16,6 @@ puts(c)
 
 let d = c/5
 puts(d)
+
+puts(a.get_name())
+puts(a.repr())
