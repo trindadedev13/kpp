@@ -73,7 +73,7 @@ interpreter::interpreter(ast::program program_)
     m_scopes.emplace_back();
 }
 
-obj::object_ref<object> interpreter::run(void)
+auto interpreter::run(void) -> obj::object_ref<object>
 {
     auto &body = m_program.body;
     if (body.empty())
@@ -105,32 +105,32 @@ std::expected<obj::object_ref<object>, std::string> interpreter::assign(std::str
     return std::unexpected{std::format("undefined object: {}", name)};
 }
 
-obj::object_ref<object> interpreter::visit(ast::literal_expr<std::string> const &expr)
+auto interpreter::visit(ast::literal_expr<std::string> const &expr) -> obj::object_ref<object>
 {
     return obj::make_object<obj::string_object>(expr.val);
 }
 
-obj::object_ref<object> interpreter::visit(ast::literal_expr<int> const &expr)
+auto interpreter::visit(ast::literal_expr<int> const &expr) -> obj::object_ref<object>
 {
     return obj::make_object<obj::int_object>(expr.val);
 }
 
-obj::object_ref<object> interpreter::visit(ast::literal_expr<bool> const &expr)
+auto interpreter::visit(ast::literal_expr<bool> const &expr) -> obj::object_ref<object>
 {
     return obj::make_object<obj::bool_object>(expr.val);
 }
 
-obj::object_ref<object> interpreter::visit(ast::literal_expr<std::nullptr_t> const &expr)
+auto interpreter::visit(ast::literal_expr<std::nullptr_t> const &expr) -> obj::object_ref<object>
 {
     return obj::make_object<obj::null_object>();
 }
 
-obj::object_ref<object> interpreter::visit(ast::block_expr const &expr)
+auto interpreter::visit(ast::block_expr const &expr) -> obj::object_ref<object>
 {
     return obj::make_object<obj::block_object>(&expr);
 }
 
-obj::object_ref<object> interpreter::visit(ast::function_expr const &expr)
+auto interpreter::visit(ast::function_expr const &expr) -> obj::object_ref<object>
 {
     auto obj = obj::make_object<obj::function_object>(function{&expr});
     current_scope().define(expr.name, obj);
@@ -149,7 +149,7 @@ to_objects(ast::expr_visitor &visitor, std::vector<ast::expr_ref<ast::expr>> con
     return vs;
 }
 
-obj::object_ref<object> interpreter::run_block(ast::block_expr const &block)
+auto interpreter::run_block(ast::block_expr const &block) -> obj::object_ref<object>
 {
     m_scopes.emplace_back();
 
@@ -163,9 +163,10 @@ obj::object_ref<object> interpreter::run_block(ast::block_expr const &block)
     return last;
 }
 
-obj::object_ref<object> interpreter::call_function(function const &fn,
-                                                   obj::object_ref<object> self,
-                                                   std::vector<obj::object_ref<object>> args)
+auto interpreter::call_function(function const &fn,
+                                obj::object_ref<object> self,
+                                std::vector<obj::object_ref<object>> args)
+    -> obj::object_ref<object>
 {
     /** run native function */
     if (fn.is_native())
@@ -197,7 +198,7 @@ obj::object_ref<object> interpreter::call_function(function const &fn,
     panic("invalid function");
 }
 
-obj::object_ref<object> interpreter::visit(ast::call_expr const &expr)
+auto interpreter::visit(ast::call_expr const &expr) -> obj::object_ref<object>
 {
     auto callee = expr.callee->visit(*this);
 
@@ -228,19 +229,19 @@ obj::object_ref<object> interpreter::visit(ast::call_expr const &expr)
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::var_decl_expr const &expr)
+auto interpreter::visit(ast::var_decl_expr const &expr) -> obj::object_ref<object>
 {
     auto val = expr.val->visit(*this);
     current_scope().define(expr.name, val);
     return val;
 }
 
-obj::object_ref<object> interpreter::visit(ast::return_expr const &expr)
+auto interpreter::visit(ast::return_expr const &expr) -> obj::object_ref<object>
 {
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::binary_expr const &expr)
+auto interpreter::visit(ast::binary_expr const &expr) -> obj::object_ref<object>
 {
     auto call_mtd = [this](auto &left, auto &right, auto const &name)
     {
@@ -269,7 +270,7 @@ obj::object_ref<object> interpreter::visit(ast::binary_expr const &expr)
     }
 }
 
-obj::object_ref<object> interpreter::visit(ast::assignment_expr const &expr)
+auto interpreter::visit(ast::assignment_expr const &expr) -> obj::object_ref<object>
 {
     auto value = expr.val->visit(*this);
 
@@ -295,7 +296,7 @@ obj::object_ref<object> interpreter::visit(ast::assignment_expr const &expr)
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::identifier_expr const &expr)
+auto interpreter::visit(ast::identifier_expr const &expr) -> obj::object_ref<object>
 {
     /** lookuo in the current scope */
     if (auto s = lookup(expr.name))
@@ -308,7 +309,7 @@ obj::object_ref<object> interpreter::visit(ast::identifier_expr const &expr)
     panic("undefined object or type {}", expr.name);
 }
 
-obj::object_ref<object> interpreter::visit(ast::member_access_expr const &expr)
+auto interpreter::visit(ast::member_access_expr const &expr) -> obj::object_ref<object>
 {
     auto obj = expr.obj->visit(*this);
 
@@ -333,7 +334,7 @@ obj::object_ref<object> interpreter::visit(ast::member_access_expr const &expr)
     panic("neither property nor method found for name {} in {}", expr.name, obj->get_name());
 }
 
-obj::object_ref<object> interpreter::visit(ast::namespace_access_expr const &expr)
+auto interpreter::visit(ast::namespace_access_expr const &expr) -> obj::object_ref<object>
 {
     auto obj = expr.obj->visit(*this);
 
@@ -352,12 +353,12 @@ obj::object_ref<object> interpreter::visit(ast::namespace_access_expr const &exp
     panic("neither static property nor static method found for name {}", expr.name);
 }
 
-obj::object_ref<object> interpreter::visit(ast::aggregate_expr const &expr)
+auto interpreter::visit(ast::aggregate_expr const &expr) -> obj::object_ref<object>
 {
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::struct_aggregate_expr const &expr)
+auto interpreter::visit(ast::struct_aggregate_expr const &expr) -> obj::object_ref<object>
 {
     auto st_obj = obj::make_object<obj::struct_object>(&expr);
     auto struct_type = obj::make_object<obj::type_object>(expr.name, obj::get_type_type());
@@ -387,12 +388,12 @@ obj::object_ref<object> interpreter::visit(ast::struct_aggregate_expr const &exp
     return st_obj;
 }
 
-obj::object_ref<object> interpreter::visit(ast::namespace_aggregate_expr const &expr)
+auto interpreter::visit(ast::namespace_aggregate_expr const &expr) -> obj::object_ref<object>
 {
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::extern_directive_expr const &expr)
+auto interpreter::visit(ast::extern_directive_expr const &expr) -> obj::object_ref<object>
 {
     ctx = context::directive;
     auto name = expr.name->visit(*this)->to_str();
@@ -427,7 +428,7 @@ obj::object_ref<object> interpreter::visit(ast::extern_directive_expr const &exp
     return o;
 }
 
-obj::object_ref<object> interpreter::visit(ast::import_directive_expr const &expr)
+auto interpreter::visit(ast::import_directive_expr const &expr) -> obj::object_ref<object>
 {
     todo();
 }

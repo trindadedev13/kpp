@@ -186,6 +186,16 @@ struct type_object : public object
     void define_static_method(std::string const &name, obj::object_ref<object>);
     void define_static_property(std::string const &name, obj::object_ref<object>);
 
+    inline void define_static_method(obj::object_ref<object> m)
+    {
+        define_static_method(m->get_name(), m);
+    }
+
+    inline void define_static_property(obj::object_ref<object> p)
+    {
+        define_static_property(p->get_name(), p);
+    }
+
     auto set_static_property(std::string const &, obj::object_ref<object>)
         -> std::expected<void, std::string>;
 

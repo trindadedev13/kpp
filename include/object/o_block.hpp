@@ -42,7 +42,7 @@ struct block_object : public object
 
     std::string to_str() const override
     {
-        return "<block>";
+        return repr();
     }
 
     std::string repr() const override

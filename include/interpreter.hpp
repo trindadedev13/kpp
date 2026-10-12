@@ -108,33 +108,36 @@ private:
         return m_scopes.back();
     }
 
-    std::expected<obj::object_ref<object>, std::string> lookup(std::string const &);
-    std::expected<obj::object_ref<object>, std::string> assign(std::string const &,
-                                                               obj::object_ref<object>);
+    auto lookup(std::string const &) -> std::expected<obj::object_ref<object>, std::string>;
+    auto assign(std::string const &, obj::object_ref<object>)
+        -> std::expected<obj::object_ref<object>, std::string>;
 
-    obj::object_ref<object> call_function(function const &fn, obj::object_ref<object> self, std::vector<obj::object_ref<object>> args);
-    obj::object_ref<object> run_block(ast::block_expr const &);
+    auto call_function(function const &fn,
+                       obj::object_ref<object> self,
+                       std::vector<obj::object_ref<object>> args) -> obj::object_ref<object>;
+    auto run_block(ast::block_expr const &) -> obj::object_ref<object>;
 
-    obj::object_ref<object> visit(ast::literal_expr<std::string> const &) override;
-    obj::object_ref<object> visit(ast::literal_expr<int> const &) override;
-    obj::object_ref<object> visit(ast::literal_expr<bool> const &) override;
-    obj::object_ref<object> visit(ast::literal_expr<std::nullptr_t> const &) override;
-    obj::object_ref<object> visit(ast::block_expr const &) override;
-    obj::object_ref<object> visit(ast::function_expr const &) override;
-    obj::object_ref<object> visit(ast::call_expr const &) override;
-    obj::object_ref<object> visit(ast::var_decl_expr const &) override;
-    obj::object_ref<object> visit(ast::return_expr const &) override;
-    obj::object_ref<object> visit(ast::binary_expr const &) override;
-    obj::object_ref<object> visit(ast::assignment_expr const &) override;
-    obj::object_ref<object> visit(ast::identifier_expr const &) override;
-    obj::object_ref<object> visit(ast::member_access_expr const &) override;
-    obj::object_ref<object> visit(ast::namespace_access_expr const &) override;
-    obj::object_ref<object> visit(ast::aggregate_expr const &) override;
-    obj::object_ref<object> visit(ast::struct_aggregate_expr const &) override;
-    obj::object_ref<object> visit(ast::namespace_aggregate_expr const &) override;
+    auto visit(ast::literal_expr<std::string> const &) -> obj::object_ref<object> override;
+    auto visit(ast::literal_expr<int> const &) -> obj::object_ref<object> override;
+    auto visit(ast::literal_expr<bool> const &) -> obj::object_ref<object> override;
 
-    obj::object_ref<object> visit(ast::extern_directive_expr const &) override;
-    obj::object_ref<object> visit(ast::import_directive_expr const &) override;
+    auto visit(ast::literal_expr<std::nullptr_t> const &) -> obj::object_ref<object> override;
+    auto visit(ast::block_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::function_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::call_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::var_decl_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::return_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::binary_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::assignment_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::identifier_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::member_access_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::namespace_access_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::aggregate_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::struct_aggregate_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::namespace_aggregate_expr const &) -> obj::object_ref<object> override;
+
+    auto visit(ast::extern_directive_expr const &) -> obj::object_ref<object> override;
+    auto visit(ast::import_directive_expr const &) -> obj::object_ref<object> override;
 };
 
 } // namespace kpp

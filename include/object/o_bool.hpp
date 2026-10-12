@@ -41,12 +41,12 @@ struct bool_object : public object
 
     std::string to_str() const override
     {
-        return std::to_string(m_value);
+        return std::to_string(get_value());
     }
 
     std::string repr() const override
     {
-        return std::to_string(m_value);
+        return std::format("<bool {}>", get_value());
     }
 
     bool get_value() const

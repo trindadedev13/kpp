@@ -28,10 +28,7 @@ namespace kpp::obj
 {
 
 template <>
-inline std::string obj_cast<std::string>(object const &value)
-{
-    return value.repr();
-}
+inline std::string obj_cast<std::string>(object const &value);
 
 struct string_object : public object
 {
@@ -48,12 +45,12 @@ struct string_object : public object
 
     std::string to_str() const override
     {
-        return repr();
+        return get_value();
     }
 
     std::string repr() const override
     {
-        return m_value;
+        return std::format("<string {}>", get_value());
     }
 
     std::string const &get_value() const
@@ -85,5 +82,11 @@ struct string_object : public object
 private:
     std::string m_value;
 };
+
+template <>
+inline std::string obj_cast<std::string>(object const &value)
+{
+    return value.to_str();
+}
 
 } // namespace kpp::obj

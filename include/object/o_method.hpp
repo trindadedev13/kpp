@@ -42,12 +42,12 @@ struct method_object : public object
 
     std::string to_str() const override
     {
-        return m_value.fn.get_name();
+        return repr();
     }
 
     std::string repr() const override
     {
-        return std::format("<method {}>", m_value.fn.get_name());
+        return std::format("<method {}>", get_name());
     }
 
     method const &get_value() const

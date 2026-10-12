@@ -164,7 +164,6 @@ auto obj::type_object::set_static_property(std::string const &name, obj::object_
 void obj::type_object::register_methods(obj::object_ref<type_object> to)
 {
     to->define_static_method(
-        "new",
         make_method("new",
                     [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
                     {
@@ -173,7 +172,6 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
 
     /** get_type instance method */
     to->define_method(
-        "get_type",
         make_method(to,
                     "get_type",
                     [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
@@ -183,7 +181,6 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
 
     /** get_type type method */
     to->define_static_method(
-        "get_type",
         make_method(to,
                     "get_type",
                     [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>
@@ -191,9 +188,9 @@ void obj::type_object::register_methods(obj::object_ref<type_object> to)
                         return self->get_type();
                     }));
 
+
     /** to_str instance method */
     to->define_method(
-        "to_str",
         make_method(to,
                     "to_str",
                     [](auto self, std::vector<object_ref<object>> const &args) -> object_ref<object>

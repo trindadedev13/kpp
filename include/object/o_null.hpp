@@ -44,7 +44,7 @@ struct null_object : public object
 
     std::string repr() const override
     {
-        return "null";
+        return "<null>";
     }
 };
 

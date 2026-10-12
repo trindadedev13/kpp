@@ -42,12 +42,12 @@ struct function_object : public object
 
     std::string to_str() const override
     {
-        return m_value.get_name();
+        return repr();
     }
 
     std::string repr() const override
     {
-        return std::format("<function {}>", m_value.get_name());
+        return std::format("<function {}>", get_value().get_name());
     }
 
     function const &get_value() const

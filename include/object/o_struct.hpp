@@ -38,7 +38,7 @@ struct struct_object : public object
 
     std::string get_name(void) const override
     {
-        return m_value->name;
+        return get_value()->name;
     }
 
     std::string to_str() const override
@@ -48,7 +48,7 @@ struct struct_object : public object
 
     std::string repr() const override
     {
-        return std::format("<struct {}>", m_value->name);
+        return std::format("<struct {}>", get_name());
     }
 
     ast::struct_aggregate_expr const *get_value() const
