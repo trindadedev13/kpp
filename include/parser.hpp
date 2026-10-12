@@ -45,21 +45,22 @@ struct parser
     ast::program parse();
 
 private:
-    ast::expr_ref<ast::expr> parse_expr();
-    ast::expr_ref<ast::expr> parse_assignment();
-    ast::expr_ref<ast::expr> parse_postfix();
-    ast::expr_ref<ast::expr> parse_primary();
+    ast::expr_ref<ast::expr> parse_expr(void);
+    ast::expr_ref<ast::expr> parse_assignment(void);
+    ast::expr_ref<ast::expr> parse_additive(void);
+    ast::expr_ref<ast::expr> parse_multiplicative(void);
+    ast::expr_ref<ast::expr> parse_postfix(void);
+    ast::expr_ref<ast::expr> parse_primary(void);
 
     struct __fndecl
     {
         std::string name;
-        std::variant<std::vector<std::string>, std::vector<ffi::c_type>> v_params;
-        std::variant<std::string, ffi::c_type> ret_type;
+        std::vector<std::string> v_params;
+        std::string ret_type;
     };
 
-    __fndecl parse_function_decl(bool is_extern = false);
+    __fndecl parse_function_decl(void);
     ast::expr_ref<ast::function_expr> parse_function(void);
-    ast::expr_ref<ast::extern_decl_expr> parse_extern_decl(void);
 
     ast::expr_ref<ast::call_expr> parse_call(ast::expr_ref<ast::expr>);
     ast::expr_ref<ast::var_decl_expr> parse_var_decl(void);
@@ -69,6 +70,9 @@ private:
     ast::expr_ref<ast::aggregate_expr> parse_aggregate(const std::string &);
     ast::expr_ref<ast::struct_aggregate_expr> parse_struct(void);
     ast::expr_ref<ast::namespace_aggregate_expr> parse_namespace(void);
+
+    ast::expr_ref<ast::extern_directive_expr> parse_extern_directive(void);
+    ast::expr_ref<ast::import_directive_expr> parse_import_directive(void);
 
     const token *advance();
     const token *consume(token::kind);

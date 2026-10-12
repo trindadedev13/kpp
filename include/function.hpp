@@ -46,7 +46,7 @@ struct fn;
 struct native_function
 {
     using callback_t =
-        std::function<obj::object_ref<object>(std::vector<obj::object_ref<object>> const &)>;
+        std::function<obj::object_ref<object>(obj::object_ref<object> self, std::vector<obj::object_ref<object>> const &args)>;
     using callable_t = std::variant<std::shared_ptr<ffi::fn>, callback_t>;
 
     std::string name;

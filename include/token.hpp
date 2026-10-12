@@ -45,6 +45,10 @@ struct token
         open_brace,
         close_brace,
         dot,
+        plus,
+        minus,
+        slash,
+        back_slash,
         string_lit,
         number_lit,
         bool_lit,
@@ -107,19 +111,23 @@ struct token
         arr['{'] = token::kind::open_brace;
         arr['}'] = token::kind::close_brace;
         arr['.'] = token::kind::dot;
+        arr['+'] = token::kind::plus;
+        arr['-'] = token::kind::minus;
+        arr['/'] = token::kind::slash;
+        arr['\\'] = token::kind::back_slash;
         return arr;
     }();
 
     static constexpr auto is_keyword = [](const auto &word) -> bool
     {
         return (word == "work" || word == "end" || word == "let" || word == "return" ||
-                word == "do" || word == "struct" || word == "namespace" || word == "extern" ||
-                word == "from" || word == "null");
+                word == "do" || word == "struct" || word == "namespace" || word == "from" ||
+                word == "null");
     };
 
     static constexpr auto is_directive = [](const auto &word) -> bool
     {
-        return (word == "@import");
+        return (word == "@import" || word == "@extern");
     };
 
     static constexpr auto is_bool = [](const auto &word) -> bool

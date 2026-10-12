@@ -21,21 +21,22 @@
 
 #include <cstddef>
 #include <expected>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "ast.hpp"
+#include "ffi/so.hpp"
 #include "function.hpp"
 #include "object/object.hpp"
 
 namespace kpp
 {
 
-class scope
+struct scope
 {
-public:
     void define(std::string name, obj::object_ref<object> obj)
     {
         m_values.emplace(std::move(name), std::move(obj));
@@ -65,6 +66,25 @@ private:
     std::unordered_map<std::string, obj::object_ref<object>> m_values;
 };
 
+struct so_manager
+{
+    std::shared_ptr<ffi::so> load(std::string const &path)
+    {
+        auto it = libraries.find(path);
+
+        if (it != libraries.end())
+            return it->second;
+
+        auto lib = std::make_shared<ffi::so>(path);
+
+        libraries.emplace(path, lib);
+        return lib;
+    }
+
+private:
+    std::unordered_map<std::string, std::shared_ptr<ffi::so>> libraries;
+};
+
 struct interpreter : ast::expr_visitor
 {
     interpreter(ast::program);
@@ -75,11 +95,13 @@ private:
     enum class context
     {
         default_ = 0,
-        call
+        directive
     };
 
     ast::program m_program;
     std::vector<scope> m_scopes;
+    context ctx;
+    so_manager soman;
 
     scope &current_scope(void)
     {
@@ -90,7 +112,7 @@ private:
     std::expected<obj::object_ref<object>, std::string> assign(std::string const &,
                                                                obj::object_ref<object>);
 
-    obj::object_ref<object> call_function(function const &, std::vector<obj::object_ref<object>>);
+    obj::object_ref<object> call_function(function const &fn, obj::object_ref<object> self, std::vector<obj::object_ref<object>> args);
     obj::object_ref<object> run_block(ast::block_expr const &);
 
     obj::object_ref<object> visit(ast::literal_expr<std::string> const &) override;
@@ -100,7 +122,6 @@ private:
     obj::object_ref<object> visit(ast::block_expr const &) override;
     obj::object_ref<object> visit(ast::function_expr const &) override;
     obj::object_ref<object> visit(ast::call_expr const &) override;
-    obj::object_ref<object> visit(ast::directive_expr const &) override;
     obj::object_ref<object> visit(ast::var_decl_expr const &) override;
     obj::object_ref<object> visit(ast::return_expr const &) override;
     obj::object_ref<object> visit(ast::binary_expr const &) override;
@@ -111,7 +132,9 @@ private:
     obj::object_ref<object> visit(ast::aggregate_expr const &) override;
     obj::object_ref<object> visit(ast::struct_aggregate_expr const &) override;
     obj::object_ref<object> visit(ast::namespace_aggregate_expr const &) override;
-    obj::object_ref<object> visit(ast::extern_decl_expr const &) override;
+
+    obj::object_ref<object> visit(ast::extern_directive_expr const &) override;
+    obj::object_ref<object> visit(ast::import_directive_expr const &) override;
 };
 
 } // namespace kpp

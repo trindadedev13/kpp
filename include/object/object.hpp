@@ -65,27 +65,9 @@ struct object
     auto get_method(std::string const &) -> std::expected<obj::object_ref<object>, std::string>;
     auto get_property(std::string const &) -> std::expected<obj::object_ref<object>, std::string>;
 
-    void define_method(std::string const &name, obj::object_ref<object> m)
-    {
-        methods[name] = m;
-    }
-
-    void define_property(std::string const &name, obj::object_ref<object> p)
-    {
-        properties[name] = p;
-    }
-
+    void define_property(std::string const &, obj::object_ref<object>);
     auto set_property(std::string const &name, obj::object_ref<object> &value)
-        -> std::expected<void, std::string>
-    {
-        auto it = properties.find(name);
-
-        if (it == properties.end())
-            return std::unexpected{std::format("property {} not defined", name)};
-
-        it->second = std::move(value);
-        return {};
-    }
+        -> std::expected<void, std::string>;
 
     auto get_type(void) -> obj::object_ref<obj::type_object>
     {
@@ -98,34 +80,9 @@ struct object
     }
 
 protected:
-    auto find_property(std::string const &name)
-        -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
-    {
-        return properties.find(name);
-    }
-
-    auto find_method(std::string const &name)
-        -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
-    {
-        return methods.find(name);
-    }
-
-    auto properties_end() -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
-    {
-        return properties.end();
-    }
-
-    auto methods_end() -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
-    {
-        return methods.end();
-    }
-
-protected:
     explicit object(obj::object_ref<obj::type_object>);
 
     obj::object_ref<obj::type_object> m_type;
-    std::unordered_map<std::string, obj::object_ref<object>> methods;
-    std::unordered_map<std::string, obj::object_ref<object>> properties;
 };
 
 namespace obj
@@ -134,22 +91,38 @@ namespace obj
 struct type_object : public object
 {
     std::string name;
+    object_ref<type_object> base;
 
     /** static methods from the class, they're called from the type and not from the instance
      *  for example:
-     *    int.from(<string>)
+     *    int::from(<string>)
      */
     std::unordered_map<std::string, obj::object_ref<object>> static_methods;
 
-    /** static property from the class, they're called from the type and not from the instance
+    /** static property from the class, they're used from the type and not from the instance
      *  for example:
-     *    int.MAX
+     *    int::MAX
      */
     std::unordered_map<std::string, obj::object_ref<object>> static_properties;
 
-    type_object(std::string name_, object_ref<type_object> meta_)
+    /** instance methods from the class, they're called from the instance and not from the type
+     *  for example:
+     *    5.get_type()
+     */
+    std::unordered_map<std::string, obj::object_ref<object>> methods;
+
+    /** instance properties from the class, they're used from the instance and not from the type
+     *  for example:
+     *    5.to_str()
+     */
+    std::unordered_map<std::string, obj::object_ref<object>> properties;
+
+    type_object(std::string name_,
+                object_ref<type_object> meta_,
+                object_ref<type_object> base_ = nullptr)
         : object{meta_},
-          name{name_}
+          name{std::move(name_)},
+          base{std::move(base_)}
     {
     }
 
@@ -168,6 +141,43 @@ struct type_object : public object
         return std::format("<type {}>", get_name());
     }
 
+    void define_method(std::string const &name, obj::object_ref<object> m)
+    {
+        methods[name] = m;
+    }
+
+    void define_method(object_ref<object> m)
+    {
+        define_method(m->get_name(), m);
+    }
+
+    void define_property(std::string const &name, obj::object_ref<object> p)
+    {
+        properties[name] = p;
+    }
+
+    auto find_method(std::string const &name)
+        -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
+    {
+        return methods.find(name);
+    }
+
+    auto find_property(std::string const &name)
+        -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
+    {
+        return properties.find(name);
+    }
+
+    auto methods_end() -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
+    {
+        return methods.end();
+    }
+
+    auto properties_end() -> std::unordered_map<std::string, obj::object_ref<object>>::iterator
+    {
+        return properties.end();
+    }
+
     auto get_static_method(std::string const &)
         -> std::expected<obj::object_ref<object>, std::string>;
     auto get_static_property(std::string const &)
@@ -178,6 +188,18 @@ struct type_object : public object
 
     auto set_static_property(std::string const &, obj::object_ref<object>)
         -> std::expected<void, std::string>;
+
+    auto set_property(std::string const &name, obj::object_ref<object> &value)
+        -> std::expected<void, std::string>
+    {
+        auto it = properties.find(name);
+
+        if (it == properties.end())
+            return std::unexpected{std::format("property {} not defined", name)};
+
+        it->second = std::move(value);
+        return {};
+    }
 
     static void register_methods(object_ref<type_object>);
 };
@@ -270,12 +292,14 @@ static inline auto get_type(std::string const &name)
 
 auto make_method(object_ref<object> self,
                  std::string const &name,
-                 std::function<object_ref<object>(std::vector<object_ref<object>> const &)>)
+                 std::function<object_ref<object>(object_ref<object> self,
+                                                  std::vector<object_ref<object>> const &args)>)
     -> object_ref<object>;
 
 inline auto
 make_method(std::string const &name,
-            std::function<object_ref<object>(std::vector<object_ref<object>> const &)> fn)
+            std::function<object_ref<object>(object_ref<object> self,
+                                             std::vector<object_ref<object>> const &args)> fn)
     -> object_ref<object>
 {
     return make_method(nullptr, name, fn);

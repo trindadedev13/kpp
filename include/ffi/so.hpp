@@ -22,7 +22,7 @@
 #include <dlfcn.h>
 #include <string>
 
-#include "error.h"
+#include "error.hpp"
 
 namespace kpp::ffi
 {
@@ -74,8 +74,8 @@ struct so
 
     void *sym(std::string const &name)
     {
-        void *sym = dlsym(m_handle, name.c_str());
-        return sym;
+        dlerror();
+        return dlsym(m_handle, name.c_str());
     }
 
 private:

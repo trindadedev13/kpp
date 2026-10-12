@@ -127,6 +127,14 @@ file_info &lexer::tokenize()
             continue;
         }
 
+        if (ch == '/' && next() == '/')
+        {
+            advance(2);
+            while (m_pos < clen && m_fi.content.at(m_pos) != '\n')
+                advance();
+            continue;
+        }
+
         if (auto kind = token::symbols[static_cast<unsigned char>(ch)])
         {
             push_token(ch, *kind);
@@ -144,15 +152,6 @@ file_info &lexer::tokenize()
             }
 
             push_token(str, token::kind::string_lit);
-            continue;
-        }
-
-        // comments
-        else if (ch == '/' && next() == '/')
-        {
-            advance(2);
-            while (m_pos < clen && m_fi.content.at(m_pos) != '\n')
-                advance();
             continue;
         }
         else if (ch == '\n')

@@ -29,7 +29,6 @@
 #include <utility>
 #include <vector>
 
-#include "ffi/type.hpp"
 #include "object/object.hpp"
 
 namespace kpp::ast
@@ -42,7 +41,6 @@ struct literal_expr;
 struct block_expr;
 struct function_expr;
 struct call_expr;
-struct directive_expr;
 struct var_decl_expr;
 struct return_expr;
 struct binary_expr;
@@ -53,7 +51,9 @@ struct namespace_access_expr;
 struct aggregate_expr;
 struct struct_aggregate_expr;
 struct namespace_aggregate_expr;
-struct extern_decl_expr;
+
+struct extern_directive_expr;
+struct import_directive_expr;
 
 struct expr_visitor
 {
@@ -66,7 +66,6 @@ struct expr_visitor
     virtual obj::object_ref<object> visit(block_expr const &) = 0;
     virtual obj::object_ref<object> visit(function_expr const &) = 0;
     virtual obj::object_ref<object> visit(call_expr const &) = 0;
-    virtual obj::object_ref<object> visit(directive_expr const &) = 0;
     virtual obj::object_ref<object> visit(var_decl_expr const &) = 0;
     virtual obj::object_ref<object> visit(return_expr const &) = 0;
     virtual obj::object_ref<object> visit(binary_expr const &) = 0;
@@ -77,7 +76,10 @@ struct expr_visitor
     virtual obj::object_ref<object> visit(aggregate_expr const &) = 0;
     virtual obj::object_ref<object> visit(struct_aggregate_expr const &) = 0;
     virtual obj::object_ref<object> visit(namespace_aggregate_expr const &) = 0;
-    virtual obj::object_ref<object> visit(extern_decl_expr const &) = 0;
+
+    virtual obj::object_ref<object> visit(extern_directive_expr const &) = 0;
+    virtual obj::object_ref<object> visit(import_directive_expr const &) = 0;
+    ;
 };
 
 struct expr
@@ -156,8 +158,9 @@ literal_expr<bool>::print_tree(std::string &out, const std::string &prefix, bool
 }
 
 template <>
-inline void
-literal_expr<std::nullptr_t>::print_tree(std::string &out, const std::string &prefix, bool is_last) const
+inline void literal_expr<std::nullptr_t>::print_tree(std::string &out,
+                                                     const std::string &prefix,
+                                                     bool is_last) const
 {
     append_tree_prefix(out, prefix, is_last);
 
@@ -278,34 +281,19 @@ struct call_expr : expr
     }
 };
 
-/** Represents a directive
- *  Directive are special statements
+/** Base for any Directive
+ *  *abstract class.
+ *  Directive are special expressions
  *  For example:
  *    @import("android") is the import directive
  */
 struct directive_expr : expr
 {
-    std::string name;
-    expr_ref<expr> val;
+    expr_ref<expr> name;
 
-    directive_expr(std::string name_, expr_ref<expr> value_)
-        : name{std::move(name_)},
-          val{std::move(value_)}
+    directive_expr(expr_ref<expr> &name_)
+        : name{std::move(name_)}
     {
-    }
-
-    obj::object_ref<object> visit(expr_visitor &visitor) const override
-    {
-        return visitor.visit(*this);
-    }
-
-    void print_tree(std::string &out, const std::string &prefix, bool is_last) const override
-    {
-        append_tree_prefix(out, prefix, is_last);
-        out += std::format("directive {}\n", name);
-
-        auto child_prefix = prefix + (is_last ? "    " : "│   ");
-        val->print_tree(out, child_prefix, true);
     }
 };
 
@@ -645,25 +633,30 @@ struct struct_aggregate_expr : aggregate_expr
     }
 };
 
-/** Represents a extern function declaration
- * For Example:
- *   extern puts(char*) -> int from "c"
+/** Represents the @extern directive
+ *  Example:
+ *  @extern(
+ *    name = "puts", // name
+ *    ret = "int",   // return typr
+ *    lib = "c",     // function lib
+ *    pointer        // arguments
+ *  )
+ *  NOTE: you can omit the emit the arg labels, the important is the order.
  */
-struct extern_decl_expr : expr
+struct extern_directive_expr : directive_expr
 {
-    std::string name;
-    ffi::c_type ret_type;
-    std::vector<ffi::c_type> params_types;
-    expr_ref<expr> lib; // from<
+    expr_ref<expr> ret_type;
+    expr_ref<expr> lib;
+    std::vector<expr_ref<expr>> params_types;
 
-    extern_decl_expr(std::string name_,
-                     ffi::c_type ret_type_,
-                     std::vector<ffi::c_type> params_types_,
-                     expr_ref<expr> lib_)
-        : name{std::move(name_)},
+    extern_directive_expr(expr_ref<expr> &name_,
+                          expr_ref<expr> &ret_type_,
+                          expr_ref<expr> &lib_,
+                          std::vector<expr_ref<expr>> &params_types_)
+        : directive_expr{name_},
           ret_type{std::move(ret_type_)},
-          params_types{std::move(params_types_)},
-          lib{std::move(lib_)}
+          lib{std::move(lib_)},
+          params_types{std::move(params_types_)}
     {
     }
 
@@ -675,15 +668,58 @@ struct extern_decl_expr : expr
     void print_tree(std::string &out, const std::string &prefix, bool is_last) const override
     {
         append_tree_prefix(out, prefix, is_last);
-        out += std::format("extern {} -> {}  \n", name, ffi::to_string(ret_type));
+        out += "extern\n";
 
-        auto child_prefix = prefix + (is_last ? "    " : "│   ");
-        lib->print_tree(out, prefix, false);
-        for (auto i{0}; i < params_types.size(); i++)
+        const auto child_prefix = prefix + (is_last ? "    " : "│   ");
+
+        const auto print_child =
+            [&](const char *label, const expr &node, const std::string &node_prefix, bool last)
         {
-            append_tree_prefix(out, child_prefix, i == params_types.size() - 1);
-            out += "param " + to_string(params_types.at(i)) + "\n";
+            append_tree_prefix(out, node_prefix, last);
+            out += label;
+            out += '\n';
+
+            node.print_tree(out, node_prefix + (last ? "    " : "│   "), true);
+        };
+
+        print_child("name", *name, child_prefix, false);
+        print_child("ret", *ret_type, child_prefix, false);
+        print_child("lib", *lib, child_prefix, params_types.empty());
+
+        for (std::size_t i = 0; i < params_types.size(); ++i)
+        {
+            print_child("param", *params_types[i], child_prefix, i + 1 == params_types.size());
         }
+    }
+};
+
+/** Represents the import directive
+ *  Example:
+ *   @import("io")
+ */
+struct import_directive_expr : directive_expr
+{
+    import_directive_expr(expr_ref<expr> &module_)
+        : directive_expr{module_}
+    {
+    }
+
+    obj::object_ref<object> visit(expr_visitor &visitor) const override
+    {
+        return visitor.visit(*this);
+    }
+
+    void print_tree(std::string &out, const std::string &prefix, bool is_last) const override
+    {
+        append_tree_prefix(out, prefix, is_last);
+        out += "import\n";
+
+        const auto child_prefix = prefix + (is_last ? "    " : "│   ");
+
+        append_tree_prefix(out, child_prefix, true);
+        out += "module\n";
+
+        name->print_tree(out, child_prefix + "    ", true);
     }
 };
 

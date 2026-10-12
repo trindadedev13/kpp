@@ -23,7 +23,7 @@
         {
             match: keywordsToRegex(
                 "work do end return false true null let"
-                "extern struct namespace"
+                "struct namespace"
             ),
             0: "keyword"
         }

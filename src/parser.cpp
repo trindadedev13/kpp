@@ -74,12 +74,47 @@ ast::expr_ref<ast::expr> parser::parse_expr()
 
 ast::expr_ref<ast::expr> parser::parse_assignment()
 {
-    auto left = parse_postfix();
+    auto left = parse_additive();
     if (auto tok = current(); tok && tok->get_kind() == token::kind::equals)
     {
         advance();
         auto right = parse_assignment();
         return ast::make_expr<ast::assignment_expr>(std::move(left), std::move(right));
+    }
+    return left;
+}
+
+ast::expr_ref<ast::expr> parser::parse_additive(void)
+{
+    auto left = parse_multiplicative();
+    while (auto tok = current())
+    {
+        if (!tok || (tok->get_kind() != token::kind::plus && tok->get_kind() != token::kind::minus))
+            break;
+
+        auto op = tok->get_kind() == token::kind::plus ? ast::binary_expr::op_kind::add
+                                                       : ast::binary_expr::op_kind::sub;
+        advance();
+        auto right = parse_multiplicative();
+        left = ast::make_expr<ast::binary_expr>(std::move(left), std::move(right), op);
+    }
+
+    return left;
+}
+
+ast::expr_ref<ast::expr> parser::parse_multiplicative(void)
+{
+    auto left = parse_postfix();
+    while (auto tok = current())
+    {
+        if (!tok || (tok->get_kind() != token::kind::star && tok->get_kind() != token::kind::slash))
+            break;
+
+        auto op = tok->get_kind() == token::kind::star ? ast::binary_expr::op_kind::mul
+                                                       : ast::binary_expr::op_kind::div;
+        advance();
+        auto right = parse_postfix();
+        left = ast::make_expr<ast::binary_expr>(std::move(left), std::move(right), op);
     }
     return left;
 }
@@ -200,8 +235,6 @@ ast::expr_ref<ast::expr> parser::parse_primary()
             return parse_struct();
         else if (kw->get_value() == "namespace")
             return parse_namespace();
-        else if (kw->get_value() == "extern")
-            return parse_extern_decl();
         else if (kw->get_value() == "null")
         {
             advance();
@@ -219,13 +252,12 @@ ast::expr_ref<ast::expr> parser::parse_primary()
     return nullptr;
 }
 
-parser::__fndecl parser::parse_function_decl(bool is_extern)
+parser::__fndecl parser::parse_function_decl(void)
 {
     consume(token::kind::keyword); // work
     auto name = consume(token::kind::identifier);
 
     // parse params
-    std::vector<ffi::c_type> params_types; // only used if is_extern
     std::vector<std::string> params{};
     consume(token::kind::open_paren);
     while (true)
@@ -241,16 +273,7 @@ parser::__fndecl parser::parse_function_decl(bool is_extern)
         if (!p_name)
             error(*previous(), "expected identifier after {}", m_fi.tokens.at(m_pos - 1));
 
-        if (is_extern)
-        {
-            auto ct = ffi::to_c_type(p_name->get_value());
-            if (ct)
-                params_types.push_back(ct.value());
-            else
-                error(*p_name, "expected a valid C Type in params.");
-        }
-        else
-            params.push_back(p_name->get_value());
+        params.push_back(p_name->get_value());
 
         next = current();
         if (next)
@@ -262,8 +285,8 @@ parser::__fndecl parser::parse_function_decl(bool is_extern)
         }
     }
 
+    // just for visual typing, internally the type doesn't really matter
     std::string ret_type{"any"};
-    ffi::c_type ret_type_c;
     auto next = current();
     if (next && next->get_kind() == token::kind::arrow)
     {
@@ -272,23 +295,9 @@ parser::__fndecl parser::parse_function_decl(bool is_extern)
         if (next && next->get_kind() == token::kind::identifier)
         {
             auto val = advance()->get_value();
-            if (is_extern)
-            {
-                auto ct = ffi::to_c_type(val);
-                if (ct)
-                    ret_type_c = ct.value();
-                else
-                    error(*next, "expected a valid C type in return type");
-            }
-            else
-                ret_type = val;
+            ret_type = val;
         }
     }
-
-    // return the c_types instead
-    if (is_extern)
-        return __fndecl{
-            .name = name->get_value(), .v_params = params_types, .ret_type = ret_type_c};
 
     return __fndecl{.name = name->get_value(), .v_params = params, .ret_type = ret_type};
 }
@@ -307,7 +316,7 @@ ast::expr_ref<ast::function_expr> parser::parse_function()
         error(*next, "invalid block");
 
     return ast::make_expr<ast::function_expr>(
-        decl.name, std::get<std::vector<std::string>>(decl.v_params), std::move(block));
+        decl.name, std::vector<std::string>(decl.v_params), std::move(block));
 }
 
 ast::expr_ref<ast::call_expr> parser::parse_call(ast::expr_ref<ast::expr> callee)
@@ -394,18 +403,9 @@ ast::expr_ref<ast::directive_expr> parser::parse_directive(const token &name_tok
 {
     auto name = name_token.get_value();
     if (name == "import")
-    {
-        auto paren = consume(token::kind::open_paren);
-        if (!paren)
-            error(*paren, "expected '{{' after \"@import\"");
-
-        auto value_expr = parse_expr();
-
-        paren = consume(token::kind::close_paren);
-        if (!paren)
-            error(*paren, "unclosed import directive");
-        return ast::make_expr<ast::directive_expr>(name, std::move(value_expr));
-    }
+        return parse_import_directive();
+    if (name == "extern")
+        return parse_extern_directive();
     return nullptr;
 }
 
@@ -483,28 +483,64 @@ ast::expr_ref<ast::namespace_aggregate_expr> parser::parse_namespace()
     return ast::make_expr<ast::namespace_aggregate_expr>(name->get_value(), std::move(block));
 }
 
-ast::expr_ref<ast::extern_decl_expr> parser::parse_extern_decl()
+ast::expr_ref<ast::extern_directive_expr> parser::parse_extern_directive(void)
 {
-    consume(token::kind::keyword); // extern
-    auto decl = parse_function_decl(true);
+    auto paren = consume(token::kind::open_paren);
+    if (!paren)
+        error(*previous(), "expected '(' after \"@extern\"");
 
-    auto next = current();
-    if (!next)
-        error(*previous(), "expected 'from <expr>' after extern prototype. found EOF");
+    std::vector<ast::expr_ref<ast::expr>> values{};
+    while (true)
+    {
+        auto next = current();
+        if (next && next->get_kind() == token::kind::close_paren)
+        {
+            advance();
+            break;
+        }
 
-    if (next->get_kind() != token::kind::keyword && next->get_value() != "from")
-        error(*previous(), "expected 'from <expr>' after extern decl");
+        auto value = parse_expr();
+        if (!value)
+            error(*previous(), "invalid expression");
 
-    advance();
+        values.push_back(std::move(value));
 
-    auto location = parse_expr();
-    if (!location)
-        panic("expected expression after 'from' keyword");
+        next = current();
+        if (!next)
+            break;
+        if (next->get_kind() == token::kind::comma)
+            advance();
+        else if (next->get_kind() != token::kind::close_paren)
+            error(*next, "expected ',' or ')' after expr");
+    }
 
-    return ast::make_expr<ast::extern_decl_expr>(decl.name,
-                                                 std::get<ffi::c_type>(decl.ret_type),
-                                                 std::get<std::vector<ffi::c_type>>(decl.v_params),
-                                                 std::move(location));
+    if (values.size() < 3)
+        error(*previous(),
+              "\"@extern\" expects the following values: @extern(name, ret, lib, ...args)");
+
+    auto name = std::move(values.at(0));
+    auto ret_type = std::move(values.at(1));
+    auto lib = std::move(values.at(2));
+
+    // remove name, ret and lib to keep only func params
+    if (values.size() >= 3)
+        values.erase(values.begin(), values.begin() + 3);
+
+    return ast::make_expr<ast::extern_directive_expr>(name, ret_type, lib, values);
+}
+
+ast::expr_ref<ast::import_directive_expr> parser::parse_import_directive(void)
+{
+    auto paren = consume(token::kind::open_paren);
+    if (!paren)
+        error(*current(), "expected '(' after \"@import\"");
+
+    auto value_expr = parse_expr();
+
+    paren = consume(token::kind::close_paren);
+    if (!paren)
+        error(*current(), "unclosed import directive");
+    return ast::make_expr<ast::import_directive_expr>(value_expr);
 }
 
 } // namespace kpp

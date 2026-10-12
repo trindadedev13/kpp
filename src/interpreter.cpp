@@ -31,7 +31,7 @@
 #include "ast.hpp"
 #include "error.hpp"
 #include "ffi/fn.hpp"
-#include "ffi/so.hpp"
+#include "ffi/type.hpp"
 #include "function.hpp"
 #include "method.hpp"
 #include "object/o_block.hpp"
@@ -164,6 +164,7 @@ obj::object_ref<object> interpreter::run_block(ast::block_expr const &block)
 }
 
 obj::object_ref<object> interpreter::call_function(function const &fn,
+                                                   obj::object_ref<object> self,
                                                    std::vector<obj::object_ref<object>> args)
 {
     /** run native function */
@@ -176,7 +177,7 @@ obj::object_ref<object> interpreter::call_function(function const &fn,
             return (ffi_fn.value())->call(args);
 
         if (auto cb = nfn->get_callback())
-            return (cb.value())(args);
+            return (cb.value())(self, args);
     }
 
     /** run kpp writeen functions */
@@ -204,18 +205,15 @@ obj::object_ref<object> interpreter::visit(ast::call_expr const &expr)
     if (callee->get_type() == obj::get_function_type())
     {
         auto args = to_objects(*this, expr.args);
-        return call_function(obj::obj_cast<function const &>(*callee), std::move(args));
+        return call_function(obj::obj_cast<function const &>(*callee), nullptr, std::move(args));
     }
 
     /** call method */
     if (callee->get_type() == obj::get_method_type())
     {
         auto const &mtd = obj::obj_cast<method const &>(*callee);
-
         auto args = to_objects(*this, expr.args);
-        args.insert(args.begin(), mtd.self);
-
-        return call_function(mtd.fn, std::move(args));
+        return call_function(mtd.fn, mtd.self, std::move(args));
     }
 
     /** run block */
@@ -227,11 +225,6 @@ obj::object_ref<object> interpreter::visit(ast::call_expr const &expr)
 
     std::println("{}", *callee->get_type());
 
-    todo();
-}
-
-obj::object_ref<object> interpreter::visit(ast::directive_expr const &expr)
-{
     todo();
 }
 
@@ -249,12 +242,40 @@ obj::object_ref<object> interpreter::visit(ast::return_expr const &expr)
 
 obj::object_ref<object> interpreter::visit(ast::binary_expr const &expr)
 {
-    todo();
+    auto call_mtd = [this](auto &left, auto &right, auto const &name)
+    {
+        auto mtd_o = left->get_method(name);
+        if (!mtd_o)
+            panic("Method '{}(other)' not found for {}", name, left->get_name());
+        auto const &mtd = obj::obj_cast<method const &>(*mtd_o.value());
+        auto args = std::vector{right};
+        return call_function(mtd.fn, left, args);
+    };
+
+    auto left = expr.left->visit(*this);
+    auto right = expr.right->visit(*this);
+    switch (expr.kind)
+    {
+    case ast::binary_expr::op_kind::add:
+        return call_mtd(left, right, "plus");
+    case ast::binary_expr::op_kind::sub:
+        return call_mtd(left, right, "minus");
+    case ast::binary_expr::op_kind::mul:
+        return call_mtd(left, right, "times");
+    case ast::binary_expr::op_kind::div:
+        return call_mtd(left, right, "div");
+    default:
+        todo();
+    }
 }
 
 obj::object_ref<object> interpreter::visit(ast::assignment_expr const &expr)
 {
     auto value = expr.val->visit(*this);
+
+    if (ctx == context::directive)
+        return value;
+
     if (auto *id = dynamic_cast<ast::identifier_expr *>(expr.target.get()))
     {
         if (auto res = assign(id->name, value))
@@ -297,7 +318,6 @@ obj::object_ref<object> interpreter::visit(ast::member_access_expr const &expr)
         return obj::make_object<obj::method_object>(method{obj, mt.fn});
     }
 
-    std::println("{}", *obj->get_type());
     if (obj->get_type() != obj::get_type_type())
     {
         if (auto mtd = obj->get_type()->get_method(expr.name); mtd)
@@ -310,7 +330,7 @@ obj::object_ref<object> interpreter::visit(ast::member_access_expr const &expr)
     if (auto prop = obj->get_property(expr.name); prop)
         return prop.value();
 
-    panic("neither property nor method found for name {}", expr.name);
+    panic("neither property nor method found for name {} in {}", expr.name, obj->get_name());
 }
 
 obj::object_ref<object> interpreter::visit(ast::namespace_access_expr const &expr)
@@ -372,24 +392,44 @@ obj::object_ref<object> interpreter::visit(ast::namespace_aggregate_expr const &
     todo();
 }
 
-obj::object_ref<object> interpreter::visit(ast::extern_decl_expr const &expr)
+obj::object_ref<object> interpreter::visit(ast::extern_directive_expr const &expr)
 {
-    /** TODO: Cache loaded libraries for faster use */
-    /** load the library */
-    auto from = expr.lib->visit(*this)->to_str();
-    ffi::so so{get_lib_full(from)};
+    ctx = context::directive;
+    auto name = expr.name->visit(*this)->to_str();
+    auto ret = expr.ret_type->visit(*this)->to_str();
+    auto lib = expr.lib->visit(*this)->to_str();
 
-    /** get the symbol */
-    auto sym = so.sym(expr.name);
+    auto so = soman.load(get_lib_full(lib));
+    auto sym = so->sym(name);
     if (!sym)
-        panic("no sym found for {} from {} due to {}", expr.name, from, ffi::so::get_error());
+        panic("no sym found for {} from {} due to {}", name, lib, so->get_error());
 
-    auto f = std::make_shared<ffi::fn>(expr.params_types, expr.ret_type, sym);
-    auto n = std::make_shared<native_function>(expr.name, f, expr.ret_type);
+    auto ct_ret = ffi::to_c_type(ret);
+    std::vector<ffi::c_type> ct_pts{};
+    for (auto &p : expr.params_types)
+    {
+        auto s = p->visit(*this)->to_str();
+        auto ct = ffi::to_c_type(s);
+        if (ct)
+            ct_pts.push_back(ct.value());
+        else
+            panic("expected a valid CType as param type, not {}", s);
+    }
 
-    auto obj = obj::make_object<obj::function_object>(n);
-    current_scope().define(expr.name, obj);
-    return obj;
+    if (!ct_ret)
+        panic("expected a valid CType as return type, not {}", ret);
+
+    auto f = std::make_shared<ffi::fn>(ct_pts, ct_ret.value(), sym);
+    auto n = std::make_shared<native_function>(name, f, ct_ret.value());
+    auto o = obj::make_object<obj::function_object>(n);
+    current_scope().define(name, o);
+    ctx = context::default_;
+    return o;
+}
+
+obj::object_ref<object> interpreter::visit(ast::import_directive_expr const &expr)
+{
+    todo();
 }
 
 } // namespace kpp

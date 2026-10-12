@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <print>
 #include <string>
 
 #include "object/object.hpp"
@@ -26,9 +27,11 @@
 namespace kpp::obj
 {
 
+template <>
+inline int obj_cast<int>(object const &value);
+
 struct int_object : public object
 {
-
     explicit int_object(int value)
         : object{get_int_type()},
           m_value(value)
@@ -53,6 +56,42 @@ struct int_object : public object
     int get_value() const
     {
         return m_value;
+    }
+
+    static void register_methods(void)
+    {
+        auto type = get_int_type();
+        type->define_method(make_method(type,
+                                        "plus",
+                                        [](auto self, auto const &args)
+                                        {
+                                            return make_object<int_object>(
+                                                obj_cast<int>(*self) + obj_cast<int>(*args.at(0)));
+                                        }));
+
+        type->define_method(make_method(type,
+                                        "minus",
+                                        [](auto self, auto const &args)
+                                        {
+                                            return make_object<int_object>(
+                                                obj_cast<int>(*self) - obj_cast<int>(*args.at(0)));
+                                        }));
+
+        type->define_method(make_method(type,
+                                        "times",
+                                        [](auto self, auto const &args)
+                                        {
+                                            return make_object<int_object>(
+                                                obj_cast<int>(*self) * obj_cast<int>(*args.at(0)));
+                                        }));
+
+        type->define_method(make_method(type,
+                                        "div",
+                                        [](auto self, auto const &args)
+                                        {
+                                            return make_object<int_object>(
+                                                obj_cast<int>(*self) / obj_cast<int>(*args.at(0)));
+                                        }));
     }
 
 private:

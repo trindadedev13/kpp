@@ -20,8 +20,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 #include "object/o_int.hpp"
 #include "object/object.hpp"
@@ -41,9 +39,6 @@ struct string_object : public object
         : object{get_string_type()},
           m_value(std::move(value))
     {
-        auto ms = get_str_methods();
-        for (auto const &[k, v] : ms)
-            methods.insert_or_assign(k, v);
     }
 
     std::string get_name(void) const override
@@ -66,17 +61,25 @@ struct string_object : public object
         return m_value;
     }
 
-    static auto get_str_methods() -> std::unordered_map<std::string, object_ref<object>>
+    static void register_methods(void)
     {
-        static std::unordered_map<std::string, object_ref<object>> methods{
-            {"get_len",
-             make_method("get_len",
-                         [](std::vector<object_ref<object>> const &args) -> object_ref<object>
-                         {
-                             return make_object<int_object>(
-                                 obj_cast<std::string>(*args.at(0)).size());
-                         })}};
-        return methods;
+        auto type = get_string_type();
+
+        type->define_method(make_method(type,
+                                        "get_len",
+                                        [](auto self, auto const &args)
+                                        {
+                                            return make_object<int_object>(
+                                                obj_cast<std::string>(*self).size());
+                                        }));
+        type->define_method(make_method(type,
+                                        "plus",
+                                        [](auto self, auto const &args)
+                                        {
+                                            std::string str = obj_cast<std::string>(*self) +
+                                                              obj_cast<std::string>(*args.at(0));
+                                            return make_object<string_object>(str);
+                                        }));
     }
 
 private:

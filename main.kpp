@@ -1,20 +1,18 @@
-// unfoutenely, to use extern,
-// you need to know types.
-// although language dgaf about types
-extern work puts(pointer) -> int from "c"
+let puts = @extern(
+    name = "puts",
+    ret = "int",
+    lib = "c",
+    "pointer"
+)
 
-struct person
-do
-    let name = null
-    let age = null
+let a = 6+7
+puts(a)
 
-    work init(self, name, age)
-    do
-        self.name = name
-        self.age = age
-    end
-end
+let b = a-4
+puts(b)
 
+let c = b*2
+puts(c)
 
-let eu = person::new("Aquiles", 15)
-puts("oie".get_type())
+let d = c/5
+puts(d)

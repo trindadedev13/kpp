@@ -57,6 +57,14 @@ std::string kind_to_string(const token::kind &kind)
         return "close_brace";
     case token::kind::dot:
         return "dot";
+    case token::kind::plus:
+        return "plus";
+    case token::kind::minus:
+        return "minus";
+    case token::kind::slash:
+        return "slash";
+    case token::kind::back_slash:
+        return "back_slash";
     case token::kind::string_lit:
         return "string";
     case token::kind::number_lit:
